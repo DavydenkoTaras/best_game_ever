@@ -1,5 +1,3 @@
-print("amogus");
-
 local creator = require("creator");
 
 min = math.min;
@@ -90,6 +88,58 @@ function cleanGroup(gr)
 end
 _G.cleanGroup = cleanGroup;
 
+function add_transition(par) -- obj, trans_obj, t, onComplete
+	local obj = par.obj;
+	local trans_obj = par.trans_obj;
+	local t = par.t;
+	local onComplete = par.onComplete;
+	
+	local td_obj = {};
+	
+	for str, val in pairs(trans_obj) do
+		local d = val - obj[str];
+		local td = d / t;
+		td_obj[str] = td;
+	end
+	
+	local new_fr = 0;
+	
+	local function new_transition()
+		if not pause then
+			if new_fr<t then
+				for str, val in pairs(td_obj) do
+					if obj[str]~=nil then
+						obj[str] = obj[str] + val*speed_mult;
+					else
+						Runtime:removeEventListener("enterFrame", new_transition);
+						break;
+					end
+				end
+			else
+				Runtime:removeEventListener("enterFrame", new_transition);
+				obj.transition=nil;
+				for str, val in pairs(trans_obj) do
+					if obj[str]~=nil then
+						obj[str] = val;
+					else
+						return;
+					end
+				end
+				if onComplete ~= nil then
+					onComplete();
+					-- print("onComplete !");
+				end
+			end
+			new_fr=new_fr+speed_mult;
+		end
+	end
+	
+	Runtime:addEventListener("enterFrame", new_transition);
+	
+	obj.transition = new_transition;
+	
+	return new_transition;
+end
 
 json = require 'json';
 
@@ -193,10 +243,13 @@ world_obj["danger_circle"].init = function(par)
 	-- new_danger_circle.body2 = display.newCircle(new_danger_circle, 0, 0, par["width"]/2);
 	new_danger_circle.body = display.newImageRect(new_danger_circle, "image/danger/saw.png", par["width"], par["width"]);
 	-- new_danger_circle:setFillColor(1,0,0);
+	if par["line"] ~= nil then
+		add_transition({ obj=new_danger_circle, trans_obj={x=par["line"][1].x, y=par["line"][1].y}, t=par["line"][1].t }) -- obj, trans_obj, t, onComplete
+	end
 	table.insert(world_obj["danger_circle"], new_danger_circle);
 	return new_danger_circle;
 end
-world_obj["danger_circle"].field = {"x", "y", "width"};
+world_obj["danger_circle"].field = {"x", "y", "width", "line"};
 
 local bg = display.newGroup();
 _G.bg = bg;
@@ -269,6 +322,7 @@ function absPos(obj)
 	end
 	return {x, y};
 end
+_G.absPos = absPos;
 
 function _G.rectColision(obj1, obj2)
 	-- print(arrow_n);

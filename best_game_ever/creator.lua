@@ -59,6 +59,11 @@ function creator_start()
 		
 		local obj_edit_gr = newGroup(W/2, H/2);
 		
+		function add_obj_edit_event(obj, event_type, event)
+			table.insert(obj.edit_event_arr, {event_type, event});
+			Runtime:addEventListener(event_type, event);
+		end
+		
 		obj_edit_event_arr["move"] = function(obj)
 			table.insert(obj.edit_event_arr, {"enterFrame"});
 			obj.edit_event_arr[#obj.edit_event_arr][2] = function()
@@ -161,75 +166,204 @@ function creator_start()
 			obj_edit_gr.x = 0;
 			obj_edit_gr.y = 0;
 			obj_edit_end_event_pause=true;
-			local line = { {obj.x, obj.y} };
+			-- local event_pause=false;
+			
+			--[[local function add_input_event(par)
+				local text = par.text;
+				if text.input_event then
+					Runtime:removeEventListener("key", text.input_event);
+				end
+				local enter_event = par.enter_event;
+				local left_len = par.left_len;
+				if left_len==nil then
+					left_len=0;
+				end
+				text.input_event = function(event)
+					if event.phase == "down" then
+						if event.keyName == "enter" then
+							Runtime:removeEventListener("key", text.input_event);
+							if enter_event~=nil then
+								enter_event();
+							end
+						elseif event.keyName == "deleteBack" then
+							if left_len<#text.text then
+								text.text = string.sub(text.text, 1, #text.text-1);
+							end
+						else
+							if #event.keyName == 1 then
+								local key_char = event.keyName;
+								if key_press["leftShift"] or key_press["rightShift"] then
+									key_char = string.upper(key_char);
+								end
+								text.text = text.text..key_char;
+							end
+						end
+					end
+				end
+				Runtime:addEventListener("key", text.input_event);
+			end]]--
+			
+			local function add_btn(par)
+				local x = par.x;
+				local y = par.y;
+				local text = par.text;
+				local parent = par.parent;
+				local tap_event = par.tap_event;
+				local btn = newGroup(x, y, parent);
+				btn.rect = display.newRect(btn, 0, 0, 40, 40);
+				btn.text = display.newText(btn, text, 0, 0, "font/PetMe64", 20);
+				btn.text:setFillColor(0);
+				btn.rect.width = btn.text.width;
+				if tap_event ~= nil then
+					btn.tap_event = function(event)
+						if event.type == "down" then
+							tap_event();
+						end
+					end
+					btn:addEventListener("mouse", btn.tap_event);
+				end
+				return btn;
+			end
+			
+			local function show_obj_arr(par) -- par = {arr, parent, x, y};
+				local arr = par.arr;
+				local parent = par.parent;
+				local x = par.x;
+				local y = par.y;
+				local chose_event = par.chose_event;
+				local enter_event = par.enter_event;
+				
+				local chosen_btn = nil;
+				local function chose_btn(btn)
+					if chosen_btn ~= nil then
+						chosen_btn.rect:setStrokeColor(0);
+						chosen_btn.text.text = chosen_btn.str.."="..tostring(arr[chosen_btn.i][chosen_btn.str]);
+					end
+					chosen_btn=btn;
+					if btn~=nil then
+						chosen_btn.rect:setStrokeColor(1,1,0);
+					end
+					if chose_event ~= nil then
+						chose_event();
+					end
+				end
+				
+				local gr = newGroup(x, y, parent);
+				for i=1, #arr do
+					local obj_gr = newGroup(0, 40*i, gr);
+					local j=1;
+					for str, val in pairs(arr[i]) do
+						local btn = add_btn({ x=0, y=0, parent=obj_gr, text=str.."="..tostring(val), tap_event=nil });
+						if j>1 then
+							btn.x = obj_gr[j-1].x+obj_gr[j-1].width/2+4+btn.width/2;
+						end
+						btn.rect.strokeWidth=2;
+						btn.rect:setStrokeColor(0);
+						btn.i=i;
+						btn.str=str;
+						btn.tap_event = function(event)
+							if event.type == "down" then
+								chose_btn(btn);
+							end
+						end
+						btn:addEventListener("mouse", btn.tap_event);
+						j=j+1;
+					end
+				end
+				gr.type_event = function(event)
+					if event.phase == "down" and chosen_btn ~= nil then
+						if event.keyName == "enter" then
+							local res = tonumber( string.sub(chosen_btn.text.text, #chosen_btn.str+2, #chosen_btn.text.text) );
+							if res~=nil then
+								arr[chosen_btn.i][chosen_btn.str] = tonumber( string.sub(chosen_btn.text.text, #chosen_btn.str+2, #chosen_btn.text.text) );
+							end
+							if enter_event ~= nil then
+								enter_event();
+							end
+							chose_btn(nil);
+						elseif event.keyName == "deleteBack" then
+							if #chosen_btn.text.text>#chosen_btn.str+1 then
+								chosen_btn.text.text = string.sub(chosen_btn.text.text, 1, #chosen_btn.text.text-1);
+							end
+						elseif #event.keyName==1 then
+							chosen_btn.text.text = chosen_btn.text.text..event.keyName;
+						end
+					end
+				end
+				Runtime:addEventListener("key", gr.type_event);
+				
+				return gr;
+			end
+			
+			--[[local function add_input_btn(par)
+				local x = par.x;
+				local y = par.y;
+				local text = par.text;
+				local parent = par.parent;
+				local tap_event = par.tap_event;
+				local enter_event = par.enter_event;
+				local left_len = par.left_len;
+				local btn = add_btn({ x=x, y=y, parent=parent, text=text });
+				btn:addEventListener("mouse", function(event)
+					if event.type == "down" then
+						if tap_event~=nil then
+							tap_event();
+						end
+						add_input_event({ text=btn.text, enter_event=enter_event, left_len=left_len });
+					end
+				end);
+				return btn;
+			end]]--
+			
+			local line = obj.line or { {x = obj.x, y = obj.y, t = 60} };
+			
 			local line_obj;
-			local line_gr = display.newGroup(obj_edit_gr);
-			-- line_gr.x = -obj.x;
-			-- line_gr.y = -obj.y;
+			local line_gr = newGroup(0, 0, obj_edit_gr);
 			
-			local input_type = "mouse";
+			local line_edit_gr;
 			
-			local input_btn = newGroup(W-300, 100, obj_edit_gr);
-			-- input_btn.alpha = 0.5;
-			input_btn.rect = display.newRect(input_btn, 0, 0, 40, 40);
-			input_btn.text = display.newText(input_btn, "keyboard", 0, 0, "font/PetMe64", 40);
-			input_btn.text:setFillColor(0);
-			input_btn.rect.width = input_btn.text.width + 4;
-			input_btn:addEventListener("mouse", function(event)
+			function line_gr.refresh()
+				cleanGroup(line_gr);
+				local ver={};
+				for i=1, #line do
+					table.insert(ver, line[i].x);
+					table.insert(ver, line[i].y);
+					display.newCircle(line_gr, line[i].x, line[i].y, 5);
+				end
+				line_obj = display.newLine(unpack(ver));
+				line_gr:insert(line_obj);
+				if line_edit_gr ~= nil then
+					Runtime:removeEventListener("key", line_edit_gr.type_event);
+					display.remove(line_edit_gr);
+					line_edit_gr = show_obj_arr({ arr=line, parent=obj_edit_gr, x=W-500, y=100, enter_event=line_gr.refresh });
+				end
+			end
+			
+			line_edit_gr = show_obj_arr({ arr=line, parent=obj_edit_gr, x=W-500, y=100, enter_event=line_gr.refresh });
+			
+			add_obj_edit_event(obj, "mouse", function(event)
 				if event.type == "down" then
-					if input_type == "mouse" then
-						input_btn.text.text = "mouse";
-						
-						for i=1, #line do
-							local pos_gr = newGroup(0, i*50, input_btn);
-							local x_gr = newGroup(0, 0, pos_gr);
-							local x_rect = display.newRect(x_gr, 0, 0, 40, 40);
-							local x_text = display.newText(x_gr, "x = "..line[i][1], 0, 0, "font/PetMe64", 40);
-							x_text:setFillColor(0);
-							x_rect.width = x_text.width;
-							local y_gr = newGroup(x_gr.width/2+4, 0, pos_gr);
-							y_gr.anchorX=0;
-							local y_rect = display.newRect(x_gr, 0, 0, 40, 40);
-							local y_text = display.newText(x_gr, "y = "..line[i][2], 0, 0, "font/PetMe64", 40);
-							y_text:setFillColor(0);
-							y_rect.width = y_text.width;
+					local ok = true;
+					if line_edit_gr~=nil then
+						for i=1, line_edit_gr.numChildren do
+							for j=1, line_edit_gr[i].numChildren do
+								local rect=line_edit_gr[i][j].rect;
+								local rect_pos = _G.absPos(rect);
+								local rect_x = rect_pos[1];
+								local rect_y = rect_pos[2];
+								if rect.width>=math.abs(rect_x-event.x) and rect.height>=math.abs(rect_y-event.y) then
+									ok=false;
+									break;
+								end
+							end
 						end
-					else
-						input_btn.text.text = "keyboard";
-						
-						for i=2, input_btn.numChildren do
-							display.remove(input_btn[i]);
-						end
+					end
+					if ok then
+						table.insert(line, {x = event.x, y = event.y, t = 60});
+						line_gr.refresh();
 					end
 				end
 			end);
-			
-			table.insert(obj.edit_event_arr, {"mouse"});
-			obj.edit_event_arr[#obj.edit_event_arr][2] = function(event)
-				if event.type == "down" and not _G.rectColision(input_btn, {x=event.x, y=event.y, width=0, height=0}) and input_type == "mouse" then
-					line[#line+1] = {event.x, event.y};
-					display.remove(line_obj);
-					local ver = {};
-					for i=1, #line do
-						table.insert(ver, line[i][1]);
-						table.insert(ver, line[i][2]);
-						local cir = display.newCircle(line[i][1], line[i][2], 10);
-						line_gr:insert(cir);
-					end
-					line_obj = display.newLine(unpack(ver));
-					line_obj.strokeWidth = 2;
-					line_gr:insert(line_obj);
-				end
-			end
-			Runtime:addEventListener("mouse", obj.edit_event_arr[#obj.edit_event_arr][2]);
-			
-			table.insert(obj.edit_event_arr, {"key"});
-			obj.edit_event_arr[#obj.edit_event_arr][2] = function(event)
-				if event.phase == "down" and input_type == "keyboard" then
-					
-				end
-			end
-			Runtime:addEventListener("mouse", obj.edit_event_arr[#obj.edit_event_arr][2]);
 		end
 		
 		local obj_edit_arr = {};
@@ -412,7 +546,7 @@ function creator_start()
 		
 		function obj_edit_arr_event_init(obj)
 			obj:addEventListener("mouse", function(event)
-				if event.isSecondaryButtonDown and event.type == "down" then
+				if event.isSecondaryButtonDown and event.type == "down" and not editor_pause then
 					show_obj_edit_menu(obj);
 					obj.strokeWidth = 2;
 					-- obj:setStrokeColor(1,1,0);
@@ -505,7 +639,7 @@ function creator_start()
 				shift_press = true;
 			else
 				if #event.keyName == 1 then
-					key_char = event.keyName;
+					local key_char = event.keyName;
 					if shift_press then
 						key_char = string.upper(key_char);
 					end
